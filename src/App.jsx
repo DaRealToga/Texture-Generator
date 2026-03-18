@@ -91,7 +91,7 @@ self.onmessage = function(e) {
         }
     }
 
-    self.postMessage({ outHeight, outNormal, outAO, outRoughness, outSmoothness });
+    self.postMessage({ outHeight, outNormal, outAO, outRoughness, outSmoothness, width, height });
 }
 `;
 
@@ -172,8 +172,8 @@ export default function App() {
     workerRef.current = new Worker(workerUrl);
 
     workerRef.current.onmessage = (e) => {
-      const { outHeight, outNormal, outAO, outRoughness, outSmoothness } = e.data;
-      const { w, h } = resolution;
+      // Destructure width and height directly from the worker to prevent state desync crashes
+      const { outHeight, outNormal, outAO, outRoughness, outSmoothness, width: w, height: h } = e.data;
 
       const updateCanvas = (ref, dataArray) => {
         if (!ref.current) return;
@@ -197,7 +197,7 @@ export default function App() {
       workerRef.current.terminate();
       URL.revokeObjectURL(workerUrl);
     };
-  }, [resolution]);
+  }, []);
 
   const processMaps = useCallback(() => {
     if (!imageLoaded || !workerRef.current || !sourceCanvasRef.current) return;
@@ -278,16 +278,15 @@ export default function App() {
           h = Math.round(h * ratio);
         }
 
-        setResolution({ w, h });
-
         const canvas = sourceCanvasRef.current;
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, w, h);
 
+        // Rely cleanly on React state batching to trigger the worker
+        setResolution({ w, h });
         setImageLoaded(true);
-        processMaps();
       };
       img.src = event.target.result;
     };
@@ -309,7 +308,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-200 font-sans selection:bg-indigo-500/30">
-      {/* Changed z-10 to z-50 here to prevent clipping */}
       <header className="border-b border-neutral-800 bg-neutral-900/50 p-4 sticky top-0 z-50 backdrop-blur-md">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-3">
